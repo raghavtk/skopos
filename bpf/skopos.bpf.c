@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 // Build on Linux: clang -O2 -g -target bpf -D__TARGET_ARCH_x86 -I/usr/include/$(uname -m)-linux-gnu -c bpf/skopos.bpf.c -o bpf/skopos.bpf.o
 #include <linux/types.h>
+#include <linux/bpf.h>
 #include <linux/ptrace.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_core_read.h>
