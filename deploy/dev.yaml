@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: skopos
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: skopos-control
+  namespace: skopos
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: skopos-control}
+  template:
+    metadata:
+      labels: {app: skopos-control}
+    spec:
+      containers:
+        - name: control
+          image: skopos:dev
+          imagePullPolicy: IfNotPresent
+          args: ["serve", "-listen", "0.0.0.0:8080", "-data", "/data/events.jsonl"]
+          ports:
+            - containerPort: 8080
+          volumeMounts:
+            - {name: data, mountPath: /data}
+          readinessProbe:
+            httpGet: {path: /v1/health, port: 8080}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: skopos-control
+  namespace: skopos
+spec:
+  selector: {app: skopos-control}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: skopos-agent
+  namespace: skopos
+spec:
+  selector:
+    matchLabels: {app: skopos-agent}
+  template:
+    metadata:
+      labels: {app: skopos-agent}
+    spec:
+      hostPID: true
+      hostNetwork: true
+      tolerations:
+        - {operator: Exists}
+      containers:
+        - name: agent
+          image: skopos:dev
+          imagePullPolicy: IfNotPresent
+          command: ["skopos-agent"]
+          args: ["-bpf-object", "/opt/skopos/skopos.bpf.o", "-server", "http://skopos-control.skopos.svc.cluster.local:8080"]
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - {name: host-btf, mountPath: /sys/kernel/btf, readOnly: true}
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: "1", memory: 256Mi}
+      volumes:
+        - name: host-btf
+          hostPath: {path: /sys/kernel/btf, type: Directory}
